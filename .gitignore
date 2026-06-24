@@ -1,0 +1,18 @@
+# Archivos de trabajo locales (no van al repo)
+*.docx
+*.xlsx
+*.pptx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Script de generación de imágenes
+generar_imagenes.py
+
+# Carpeta de imágenes generadas
+imagenes_entrenamiento/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📸 Clasificador en Vivo - Taller IA Verano</title>
+
+    <!-- ============================================================
+         📚 LIBRERÍAS NECESARIAS
+         Estas son las herramientas que necesitamos para que funcione
+         nuestro clasificador. Piensa en ellas como los "ingredientes"
+         de una receta:
+         - TensorFlow.js: El "cerebro" que ejecuta el modelo de IA
+         - Teachable Machine: El "traductor" que conecta nuestro
+           modelo entrenado con la página web
+    ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <!-- ============================================================
+         🎨 ESTILOS (CSS)
+         Esta sección controla cómo se VE nuestra página.
+         No afecta la lógica del programa, solo la apariencia.
+    ============================================================ -->
+    <style>
+        /* ---------- Google Font ---------- */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        /* ---------- Variables de diseño ---------- */
+        :root {
+            --bg-primary: #0f1117;
+            --bg-card: #1a1d27;
+            --bg-card-hover: #222633;
+            --accent-blue: #4f8ff7;
+            --accent-purple: #a855f7;
+            --accent-green: #22c55e;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-cyan: #06b6d4;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #2a2f3e;
+            --radius: 16px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ---------- Header ---------- */
+        .header {
+            width: 100%;
+            padding: 24px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(168, 85, 247, 0.08));
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header .emoji {
+            font-size: 2rem;
+            -webkit-text-fill-color: initial;
+        }
+
+        /* ---------- Layout principal ---------- */
+        .main {
+            width: 100%;
+            max-width: 900px;
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ---------- Cards / Secciones ---------- */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            box-shadow: var(--shadow);
+            transition: border-color 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(6, 182, 212, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .step-badge.blue { background: linear-gradient(135deg, var(--accent-blue), #3b7de8); }
+        .step-badge.purple { background: linear-gradient(135deg, var(--accent-purple), #9333ea); }
+        .step-badge.cyan { background: linear-gradient(135deg, var(--accent-cyan), #0891b2); }
+        .step-badge.green { background: linear-gradient(135deg, var(--accent-green), #16a34a); }
+        .step-badge.amber { background: linear-gradient(135deg, var(--accent-amber), #d97706); }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .card-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-left: auto;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(100, 116, 139, 0.15);
+        }
+
+        /* ---------- Input URL ---------- */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .input-url {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: 'Inter', monospace;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-url:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        .input-url::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* ---------- Botones ---------- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.35);
+        }
+
+        .btn-secondary {
+            background: rgba(6, 182, 212, 0.12);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(6, 182, 212, 0.2);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, var(--accent-green), #16a34a);
+            color: white;
+        }
+
+        .btn-green:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.25);
+        }
+
+        .btn-amber {
+            background: linear-gradient(135deg, var(--accent-amber), #d97706);
+            color: white;
+        }
+
+        .btn-amber:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+        }
+
+        /* ---------- Zona de cámara ---------- */
+        .camera-container {
+            position: relative;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #000;
+            min-height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .camera-container video {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .camera-container .captured-img {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: rgba(15, 17, 23, 0.85);
+            z-index: 2;
+        }
+
+        .camera-overlay.transparent {
+            background: transparent;
+            pointer-events: none;
+        }
+
+        .camera-overlay .icon {
+            font-size: 4rem;
+        }
+
+        .camera-overlay .hint {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .live-badge {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: rgba(239, 68, 68, 0.8);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            z-index: 3;
+            backdrop-filter: blur(8px);
+            animation: pulse-live 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-live {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .camera-switch {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            font-size: 1.1rem;
+            cursor: pointer;
+            z-index: 3;
+            backdrop-filter: blur(8px);
+            transition: background 0.2s;
+            display: none;
+        }
+
+        .camera-switch:hover { background: rgba(255, 255, 255, 0.25); }
+
+        /* ---------- Controles de cámara ---------- */
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* ---------- Permisos ---------- */
+        .permission-box {
+            padding: 20px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(239, 68, 68, 0.05));
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            display: none;
+        }
+
+        .permission-box.show {
+            display: block;
+            animation: fadeInUp 0.4s ease;
+        }
+
+        .permission-title {
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: var(--accent-amber);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .permission-steps {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .permission-steps li {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .permission-steps li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--accent-amber);
+            font-weight: 700;
+        }
+
+        /* ---------- Zona de imagen (archivo) ---------- */
+        .image-zone {
+            border: 2px dashed var(--border);
+            border-radius: 14px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .image-zone:hover {
+            border-color: var(--accent-cyan);
+            background: rgba(6, 182, 212, 0.04);
+        }
+
+        .image-zone.has-image {
+            padding: 16px;
+            border-style: solid;
+            border-color: var(--accent-green);
+        }
+
+        .image-zone img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .image-zone .icon {
+            font-size: 3rem;
+            opacity: 0.5;
+        }
+
+        .image-zone .hint {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .image-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input[type="file"] { display: none; }
+
+        /* ---------- Tabs de entrada ---------- */
+        .input-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            background: var(--bg-primary);
+            padding: 4px;
+            border-radius: 12px;
+        }
+
+        .input-tab {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: transparent;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .input-tab.active {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(168, 85, 247, 0.1));
+            color: var(--accent-cyan);
+        }
+
+        .input-tab:hover:not(.active) {
+            color: var(--text-secondary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeInUp 0.3s ease;
+        }
+
+        /* ---------- Resultados ---------- */
+        .result-container { margin-top: 16px; }
+
+        .result-box {
+            padding: 20px;
+            border-radius: 14px;
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-box.confident {
+            display: block;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .result-box.not-confident {
+            display: block;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .result-class {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .result-confidence {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* ---------- Barras de predicción ---------- */
+        .predictions-list {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .prediction-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .prediction-label {
+            width: 120px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .prediction-bar-bg {
+            flex: 1;
+            height: 28px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .prediction-bar-fill {
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.4s ease;
+            min-width: 2px;
+        }
+
+        .prediction-bar-fill.top { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple)); }
+        .prediction-bar-fill.other { background: rgba(100, 116, 139, 0.3); }
+
+        .prediction-percent {
+            width: 48px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-align: left;
+            flex-shrink: 0;
+        }
+
+        /* ---------- Estado / Log ---------- */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-top: 12px;
+        }
+
+        .status.loading { background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); }
+        .status.success { background: rgba(34, 197, 94, 0.1); color: var(--accent-green); }
+        .status.error { background: rgba(239, 68, 68, 0.1); color: var(--accent-red); }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---------- Diagrama de referencia ---------- */
+        .flow-ref {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: rgba(168, 85, 247, 0.1);
+            color: var(--accent-purple);
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            width: fit-content;
+        }
+
+        /* ---------- Footer ---------- */
+        .footer {
+            padding: 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 600px) {
+            .main { padding: 16px 12px; }
+            .card { padding: 20px; }
+            .input-group { flex-direction: column; }
+            .camera-controls { flex-direction: column; align-items: stretch; }
+            .image-actions { flex-direction: column; align-items: stretch; }
+            .prediction-label { width: 80px; font-size: 0.7rem; }
+            .camera-switch { display: block; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         🏷️ ENCABEZADO
+    ============================================================ -->
+    <header class="header">
+        <span class="emoji">📸</span>
+        <h1>Clasificador en Vivo con Cámara</h1>
+    </header>
+
+    <main class="main">
+
+        <!-- ============================================================
+             📦 PASO 1 DEL DIAGRAMA: "Cargar el modelo entrenado" (variable)
+             ─────────────────────────────────────────────────────────────
+             Aquí el alumno pega la URL del modelo que exportó desde
+             Teachable Machine. Esto equivale a GUARDAR EN UNA VARIABLE
+             la referencia al modelo.
+        ============================================================ -->
+        <section class="card" id="seccion-modelo">
+            <div class="card-header">
+                <span class="step-badge blue">1</span>
+                <span class="card-title">Cargar el modelo entrenado</span>
+                <span class="card-subtitle">📦 variable</span>
+            </div>
+
+            <div class="flow-ref">📐 Diagrama → "Cargar el modelo entrenado"</div>
+
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
+                Pega la URL de tu modelo de
+                <a href="https://teachablemachine.withgoogle.com/" target="_blank"
+                   style="color: var(--accent-cyan); text-decoration: none;">Teachable Machine</a>.
+                Expórtalo como <strong>TensorFlow.js</strong> y copia el enlace.
+            </p>
+
+            <div class="input-group">
+                <input type="text" class="input-url" id="inputModelURL"
+                       placeholder="https://teachablemachine.withgoogle.com/models/TU-MODELO/"
+                       value="">
+                <button class="btn btn-primary" id="btnCargarModelo" onclick="cargarModelo()">
+                    🚀 Cargar modelo
+                </button>
+            </div>
+
+            <div id="estadoModelo"></div>
+        </section>
+
+        <!-- ============================================================
+             📷 PASO 2 DEL DIAGRAMA: "Recibir una imagen"
+             ─────────────────────────────────────────────────────────────
+             El alumno puede recibir la imagen de DOS formas:
+               a) 📸 CÁMARA EN VIVO — usa la cámara del dispositivo
+               b) 📁 ARCHIVO — sube una imagen desde el dispositivo
+             
+             La cámara necesita PERMISOS del navegador. Cuando el
+             alumno hace clic en "Encender cámara", el navegador le
+             pregunta si quiere permitir el acceso.
+             
+             💡 Concepto de PERMISOS:
+             El navegador protege tu privacidad. No cualquier página
+             puede usar tu cámara — TÚ decides si le das permiso.
+             Esto se maneja con la API navigator.mediaDevices.getUserMedia()
+        ============================================================ -->
+        <section class="card" id="seccion-imagen" style="opacity: 0.4; pointer-events: none;">
+            <div class="card-header">
+                <span class="step-badge purple">2</span>
+                <span class="card-title">Recibir una imagen</span>
+                <span class="card-subtitle">📷 entrada del loop</span>
+            </div>
+
+            <div class="flow-ref">📐 Diagrama → "Recibir una imagen" (punto de retorno del ciclo)</div>
+
+            <!-- ── Pestañas para elegir entre cámara y archivo ── -->
+            <div class="input-tabs">
+                <button class="input-tab active" onclick="cambiarTab('camara')" id="tabCamara">
+                    📸 Cámara en vivo
+                </button>
+                <button class="input-tab" onclick="cambiarTab('archivo')" id="tabArchivo">
+                    📁 Subir archivo
+                </button>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════
+                 📸 TAB: CÁMARA EN VIVO
+                 ═══════════════════════════════════════════════════
+                 Aquí se muestra el video en vivo de la cámara.
+                 El alumno puede:
+                   - Encender/apagar la cámara
+                   - Cambiar entre cámara frontal y trasera (celular)
+                   - Tomar una foto para clasificar
+                   - Activar clasificación automática en tiempo real
+            ═══════════════════════════════════════════════════ -->
+            <div class="tab-content active" id="tabContentCamara">
+
+                <!-- Contenedor del video de la cámara -->
+                <div class="camera-container" id="cameraContainer">
+
+                    <!-- Badge "EN VIVO" (se muestra cuando la cámara está activa) -->
+                    <div class="live-badge" id="liveBadge" style="display:none;">
+                        <span class="live-dot"></span> EN VIVO
+                    </div>
+
+                    <!-- Botón para cambiar cámara frontal/trasera (celulares) -->
+                    <button class="camera-switch" id="btnCambiarCamara"
+                            onclick="cambiarCamara()" title="Cambiar cámara">
+                        🔄
+                    </button>
+
+                    <!-- Video de la cámara -->
+                    <video id="videoPreview" autoplay playsinline muted
+                           style="display:none;"></video>
+
+                    <!-- Imagen capturada (se muestra al tomar foto) -->
+                    <img id="capturedImage" class="captured-img" style="display:none;" alt="Foto capturada">
+
+                    <!-- Overlay cuando la cámara está apagada -->
+                    <div class="camera-overlay" id="cameraOverlay">
+                        <span class="icon">📸</span>
+                        <span class="hint">
+                            La cámara está apagada.<br>
+                            Haz clic en <strong>"Encender cámara"</strong> para comenzar.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Canvas oculto — se usa para capturar frames del video -->
+                <canvas id="canvasCaptura" style="display:none;"></canvas>
+
+                <!-- ── Controles de la cámara ── -->
+                <div class="camera-controls">
+                    <button class="btn btn-primary" id="btnEncenderCamara" onclick="encenderCamara()">
+                        📸 Encender cámara
+                    </button>
+                    <button class="btn btn-green" id="btnTomarFoto" onclick="tomarFoto()" disabled>
+                        📷 Tomar foto y clasificar
+                    </button>
+                    <button class="btn btn-amber" id="btnAutoClasificar" onclick="toggleAutoClasificar()" disabled>
+                        ⚡ Clasificar en vivo
+                    </button>
+                    <button class="btn btn-danger" id="btnApagarCamara" onclick="apagarCamara()" disabled>
+                        ⏹️ Apagar
+                    </button>
+                </div>
+
+                <!-- ── Caja de permisos (se muestra si hay error) ── -->
+                <div class="permission-box" id="permissionBox">
+                    <div class="permission-title">
+                        🔒 Permisos de cámara necesarios
+                    </div>
+                    <p style="color: var(--text-secondary); font-size: 0.82rem; margin-bottom: 12px;">
+                        El navegador necesita tu permiso para acceder a la cámara.
+                        Sigue estos pasos:
+                    </p>
+                    <ul class="permission-steps" id="permissionSteps">
+                        <!-- Se llena dinámicamente según el error -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════
+                 📁 TAB: SUBIR ARCHIVO
+                 ═══════════════════════════════════════════════════
+                 Igual que en el clasificador.html original.
+                 El alumno sube una imagen desde su dispositivo.
+            ═══════════════════════════════════════════════════ -->
+            <div class="tab-content" id="tabContentArchivo">
+                <div class="image-zone" id="imageZone" onclick="document.getElementById('fileInput').click()">
+                    <span class="icon">📁</span>
+                    <span class="hint">Haz clic aquí o arrastra una imagen</span>
+                    <span class="hint" style="font-size: 0.75rem;">Formatos: JPG, PNG, WEBP</span>
+                </div>
+
+                <input type="file" id="fileInput" accept="image/*" onchange="recibirImagen(event)">
+
+                <div class="image-actions">
+                    <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
+                        📁 Elegir archivo
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================
+             🔮 PASOS 3, 4, 5 Y 6 DEL DIAGRAMA
+             ─────────────────────────────────────────────────────────────
+             3. "El modelo predice (% de cada clase)" → función
+             4. "Tomar la clase más probable"
+             5. "¿Confianza > 80%?" → if
+                  - SÍ  → Mostrar "Es manzana (92%)"
+                  - NO  → Mostrar "No estoy seguro"
+             6. "¿Otra imagen?" → decidir si repetir
+        ============================================================ -->
+        <section class="card" id="seccion-resultado" style="opacity: 0.4; pointer-events: none;">
+            <div class="card-header">
+                <span class="step-badge green">3</span>
+                <span class="card-title">Resultado de la predicción</span>
+                <span class="card-subtitle">🔮 función + if</span>
+            </div>
+
+            <div class="flow-ref">📐 Diagrama → "El modelo predice" + "¿Confianza > 80%?"</div>
+
+            <div class="result-container">
+                <div class="result-box" id="resultBox">
+                    <div class="result-class" id="resultClass"></div>
+                    <div class="result-confidence" id="resultConfidence"></div>
+                </div>
+            </div>
+
+            <div class="predictions-list" id="predictionsList"></div>
+
+            <!-- ── "¿Otra imagen?" ── -->
+            <div class="image-actions" id="accionesPostResultado" style="display:none; margin-top:20px;">
+                <div class="flow-ref">📐 Diagrama → "¿Otra imagen?" → Sí → Volver al paso 2</div>
+                <button class="btn btn-green" onclick="otraImagen()">
+                    🔄 Clasificar otra imagen
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        Taller de Inteligencia Artificial · Universidad Panamericana · Verano 2026
+    </footer>
+
+    <!-- ============================================================
+         🧠 LÓGICA DEL PROGRAMA (JavaScript)
+         ─────────────────────────────────────────────────────────────
+         Aquí es donde vive la LÓGICA. Cada función está comentada
+         para que puedas seguir el diagrama de flujo paso a paso.
+    ============================================================ -->
+    <script>
+
+    // ================================================================
+    // 📦 PASO 1 DEL DIAGRAMA: "Cargar el modelo entrenado" (VARIABLE)
+    // ================================================================
+    //
+    // Esta variable almacena nuestro modelo de IA.
+    // Al principio está vacía (null). Cuando el alumno haga clic en
+    // "Cargar modelo", se llenará con el modelo de Teachable Machine.
+    //
+    // 💡 Concepto: Una VARIABLE es como una caja donde guardamos algo.
+    //    Aquí guardamos el "cerebro" entrenado del modelo.
+    //
+    let modelo = null;  // ← Variable del modelo
+
+
+    // ================================================================
+    // 📸 VARIABLES DE LA CÁMARA
+    // ================================================================
+    //
+    // Estas variables controlan el estado de la cámara.
+    // Son como "interruptores" que nos dicen:
+    //   - ¿La cámara está encendida? (streamCamara)
+    //   - ¿Estamos usando la frontal o trasera? (usandoCamaraFrontal)
+    //   - ¿Está clasificando automáticamente? (autoClasificando)
+    //   - ¿Cuántas veces por segundo clasifica? (intervaloAuto)
+    //
+    let streamCamara = null;          // El "flujo" de video de la cámara
+    let usandoCamaraFrontal = true;   // true = frontal (selfie), false = trasera
+    let autoClasificando = false;     // ¿Clasificación automática activa?
+    let intervaloAuto = null;         // Timer de clasificación automática
+
+
+    // ================================================================
+    // 🔧 FUNCIÓN: cargarModelo()
+    // ================================================================
+    // 📐 Diagrama → "Cargar el modelo entrenado"
+    //
+    // Igual que en clasificador.html. Carga el modelo de Teachable Machine.
+    //
+    async function cargarModelo() {
+        const url = document.getElementById('inputModelURL').value.trim();
+
+        if (!url) {
+            mostrarEstado('estadoModelo', '⚠️ Por favor, pega la URL de tu modelo', 'error');
+            return;
+        }
+
+        mostrarEstado('estadoModelo', '⏳ Cargando modelo...', 'loading');
+        document.getElementById('btnCargarModelo').disabled = true;
+
+        try {
+            const modelURL = url + 'model.json';
+            const metadataURL = url + 'metadata.json';
+
+            // 📦 La VARIABLE 'modelo' se llena con el modelo entrenado
+            modelo = await tmImage.load(modelURL, metadataURL);
+
+            const numClases = modelo.getTotalClasses();
+            mostrarEstado('estadoModelo',
+                `✅ ¡Modelo cargado! Tiene ${numClases} clases. ¡Ahora enciende la cámara!`,
+                'success'
+            );
+
+            // Desbloqueamos el paso 2 y 3
+            document.getElementById('seccion-imagen').style.opacity = '1';
+            document.getElementById('seccion-imagen').style.pointerEvents = 'auto';
+            document.getElementById('seccion-resultado').style.opacity = '1';
+            document.getElementById('seccion-resultado').style.pointerEvents = 'auto';
+
+        } catch (error) {
+            mostrarEstado('estadoModelo',
+                '❌ Error al cargar. Verifica que la URL termine en "/" y sea de Teachable Machine',
+                'error'
+            );
+            console.error('Error cargando modelo:', error);
+        }
+
+        document.getElementById('btnCargarModelo').disabled = false;
+    }
+
+
+    // ================================================================
+    // 📸 FUNCIÓN: encenderCamara()
+    // ================================================================
+    //
+    // 🔑 AQUÍ ESTÁN LOS PERMISOS DE CÁMARA
+    //
+    // Esta función pide al NAVEGADOR que nos dé acceso a la cámara.
+    // Usa la API del navegador llamada:
+    //
+    //   navigator.mediaDevices.getUserMedia({ video: opciones })
+    //
+    // 💡 Concepto de PERMISOS:
+    //    El navegador protege la privacidad del usuario. No cualquier
+    //    página web puede encender tu cámara sin tu autorización.
+    //    Cuando llamamos a getUserMedia(), el navegador muestra un
+    //    diálogo que dice: "¿Quieres permitir que este sitio use tu cámara?"
+    //
+    //    El usuario puede:
+    //      ✅ Permitir → La cámara se enciende y funciona
+    //      ❌ Denegar  → No podemos usar la cámara (error)
+    //      🚫 Bloquear → El navegador recuerda el "no" y ya no pregunta
+    //
+    //    Si el usuario bloqueó los permisos, tiene que ir a la
+    //    configuración del navegador para desbloquearlos.
+    //
+    //    En CELULARES, además del navegador, el SISTEMA OPERATIVO
+    //    también pide permiso por separado (Ajustes → Privacidad → Cámara).
+    //
+    async function encenderCamara() {
+
+        // Si ya hay una cámara activa, la apagamos primero
+        if (streamCamara) {
+            apagarCamara();
+        }
+
+        // Mostramos que estamos intentando encender
+        const overlay = document.getElementById('cameraOverlay');
+        overlay.innerHTML = `
+            <div class="spinner" style="width:32px;height:32px;border-width:3px;"></div>
+            <span class="hint">Solicitando permiso de cámara...</span>
+        `;
+
+        try {
+            // ══════════════════════════════════════════════════════
+            // 🔑 AQUÍ PEDIMOS EL PERMISO AL NAVEGADOR
+            // ══════════════════════════════════════════════════════
+            //
+            // navigator.mediaDevices.getUserMedia() es la función que
+            // le dice al navegador: "Necesito acceso a la cámara".
+            //
+            // Le pasamos un objeto con OPCIONES:
+            //   - video: true → queremos video (no solo audio)
+            //   - facingMode: 'user' → cámara frontal (selfie)
+            //   - facingMode: 'environment' → cámara trasera
+            //
+            // En PC solo hay una cámara (la webcam), así que
+            // facingMode no tiene efecto. En celulares sí importa.
+            //
+            // Esta línea es ASÍNCRONA (async/await) porque el
+            // navegador tiene que:
+            //   1. Mostrar el diálogo de permiso al usuario
+            //   2. Esperar a que el usuario acepte o rechace
+            //   3. Si aceptó, encender la cámara
+            //   4. Devolvernos el "stream" (flujo de video)
+            //
+            streamCamara = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: usandoCamaraFrontal ? 'user' : 'environment',
+                    // Pedimos una resolución ideal para el modelo
+                    // (no necesitamos 4K para clasificar 🙂)
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false  // No necesitamos micrófono
+            });
+
+            // ══════════════════════════════════════════════════════
+            // ✅ ¡PERMISO CONCEDIDO! La cámara está encendida.
+            // ══════════════════════════════════════════════════════
+
+            // Conectamos el stream (flujo de video) al elemento <video>
+            const video = document.getElementById('videoPreview');
+            video.srcObject = streamCamara;
+            video.style.display = 'block';
+
+            // Ocultamos el overlay y mostramos el badge "EN VIVO"
+            overlay.style.display = 'none';
+            document.getElementById('liveBadge').style.display = 'flex';
+
+            // Habilitamos los botones de control
+            document.getElementById('btnTomarFoto').disabled = false;
+            document.getElementById('btnAutoClasificar').disabled = false;
+            document.getElementById('btnApagarCamara').disabled = false;
+            document.getElementById('btnEncenderCamara').disabled = true;
+
+            // En celulares, mostramos el botón de cambiar cámara
+            if (/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                document.getElementById('btnCambiarCamara').style.display = 'block';
+            }
+
+            // Ocultamos el box de permisos si estaba visible
+            document.getElementById('permissionBox').classList.remove('show');
+
+            // Ocultamos la imagen capturada si había una
+            document.getElementById('capturedImage').style.display = 'none';
+
+        } catch (error) {
+            // ══════════════════════════════════════════════════════
+            // ❌ ERROR AL PEDIR PERMISO
+            // ══════════════════════════════════════════════════════
+            //
+            // Hay diferentes razones por las que puede fallar:
+            //
+            //   1. NotAllowedError → El usuario dijo "NO" al permiso
+            //   2. NotFoundError → No se encontró ninguna cámara
+            //   3. NotReadableError → La cámara está siendo usada
+            //      por otra aplicación (Zoom, Teams, etc.)
+            //   4. OverconstrainedError → Las opciones que pedimos
+            //      no son compatibles con la cámara
+            //
+            console.error('Error de cámara:', error.name, error.message);
+
+            overlay.innerHTML = `
+                <span class="icon">🔒</span>
+                <span class="hint">No se pudo acceder a la cámara</span>
+            `;
+
+            // Mostramos instrucciones según el tipo de error
+            manejarErrorCamara(error);
+        }
+    }
+
+
+    // ================================================================
+    // 🔒 FUNCIÓN: manejarErrorCamara()
+    // ================================================================
+    //
+    // Esta función detecta QUÉ tipo de error ocurrió al pedir
+    // permiso de cámara y muestra instrucciones claras al alumno
+    // para que pueda resolverlo.
+    //
+    function manejarErrorCamara(error) {
+        const box = document.getElementById('permissionBox');
+        const steps = document.getElementById('permissionSteps');
+        box.classList.add('show');
+
+        // Detectamos si es un celular o una computadora
+        const esCelular = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+        // Detectamos el navegador
+        const esChrome = /Chrome/i.test(navigator.userAgent) && !/Edge/i.test(navigator.userAgent);
+        const esSafari = /Safari/i.test(navigator.userAgent) && !/Chrome/i.test(navigator.userAgent);
+        const esFirefox = /Firefox/i.test(navigator.userAgent);
+
+        let instrucciones = '';
+
+        switch (error.name) {
+
+            // ── El usuario dijo "NO" o el permiso está bloqueado ──
+            case 'NotAllowedError':
+                if (esCelular && /iPhone|iPad/i.test(navigator.userAgent)) {
+                    // iPhone/iPad con Safari
+                    instrucciones = `
+                        <li>Abre <strong>Ajustes</strong> de tu iPhone</li>
+                        <li>Ve a <strong>Safari</strong> (o el navegador que uses)</li>
+                        <li>Busca <strong>Cámara</strong> y selecciona <strong>"Permitir"</strong></li>
+                        <li>Regresa aquí y recarga la página</li>
+                    `;
+                } else if (esCelular && /Android/i.test(navigator.userAgent)) {
+                    // Android con Chrome
+                    instrucciones = `
+                        <li>Toca el icono 🔒 en la barra de dirección</li>
+                        <li>Busca <strong>"Cámara"</strong> y cámbialo a <strong>"Permitir"</strong></li>
+                        <li>Si no aparece, ve a <strong>Ajustes → Apps → Chrome → Permisos → Cámara</strong></li>
+                        <li>Recarga la página</li>
+                    `;
+                } else if (esChrome) {
+                    // Chrome en PC
+                    instrucciones = `
+                        <li>Haz clic en el icono 🔒 a la izquierda de la URL</li>
+                        <li>Busca <strong>"Cámara"</strong> y selecciona <strong>"Permitir"</strong></li>
+                        <li>Recarga la página (Ctrl+R / Cmd+R)</li>
+                        <li>O ve a <strong>chrome://settings/content/camera</strong></li>
+                    `;
+                } else if (esSafari) {
+                    // Safari en Mac
+                    instrucciones = `
+                        <li>Ve al menú <strong>Safari → Ajustes para este sitio web</strong></li>
+                        <li>Cambia <strong>Cámara</strong> a <strong>"Permitir"</strong></li>
+                        <li>Recarga la página (Cmd+R)</li>
+                    `;
+                } else if (esFirefox) {
+                    // Firefox
+                    instrucciones = `
+                        <li>Haz clic en el icono de 🔒 en la barra de dirección</li>
+                        <li>Haz clic en <strong>"Más información"</strong></li>
+                        <li>Ve a la pestaña <strong>"Permisos"</strong></li>
+                        <li>Busca <strong>"Usar la cámara"</strong> y selecciona <strong>"Permitir"</strong></li>
+                    `;
+                } else {
+                    instrucciones = `
+                        <li>Busca el icono de 🔒 en la barra de dirección</li>
+                        <li>Cambia el permiso de <strong>Cámara</strong> a <strong>"Permitir"</strong></li>
+                        <li>Recarga la página</li>
+                    `;
+                }
+                break;
+
+            // ── No se encontró ninguna cámara ──
+            case 'NotFoundError':
+                instrucciones = `
+                    <li>No se detectó ninguna cámara conectada</li>
+                    <li>Si usas una webcam USB, verifica que esté conectada</li>
+                    <li>Si estás en una PC de escritorio, puede que no tenga cámara</li>
+                    <li>Prueba usar la pestaña <strong>"Subir archivo"</strong> en su lugar</li>
+                `;
+                break;
+
+            // ── La cámara está siendo usada por otra app ──
+            case 'NotReadableError':
+                instrucciones = `
+                    <li>La cámara puede estar siendo usada por otra aplicación</li>
+                    <li>Cierra <strong>Zoom, Teams, Meet, Skype</strong> u otra app con cámara</li>
+                    <li>Cierra otras pestañas del navegador que usen la cámara</li>
+                    <li>Vuelve a intentar haciendo clic en "Encender cámara"</li>
+                `;
+                break;
+
+            // ── Las opciones de video no son compatibles ──
+            case 'OverconstrainedError':
+                instrucciones = `
+                    <li>Tu cámara no soporta la configuración solicitada</li>
+                    <li>Esto puede pasar al intentar usar la cámara trasera en una PC</li>
+                    <li>Intenta recargar la página y volver a intentar</li>
+                `;
+                break;
+
+            // ── Error genérico ──
+            default:
+                instrucciones = `
+                    <li>Ocurrió un error inesperado: <strong>${error.message}</strong></li>
+                    <li>Verifica que el sitio use <strong>HTTPS</strong> (o localhost)</li>
+                    <li>La cámara NO funciona si abres el archivo directamente (file://)</li>
+                    <li>Usa <strong>Live Server</strong> en VS Code para servir la página</li>
+                `;
+                break;
+        }
+
+        steps.innerHTML = instrucciones;
+    }
+
+
+    // ================================================================
+    // 🔄 FUNCIÓN: cambiarCamara()
+    // ================================================================
+    //
+    // Alterna entre la cámara FRONTAL (selfie) y TRASERA del celular.
+    // En PC no hace nada porque generalmente solo hay una cámara.
+    //
+    // 💡 Concepto: facingMode
+    //    - 'user' → Cámara frontal (la que te ve a ti)
+    //    - 'environment' → Cámara trasera (la que ve el mundo)
+    //
+    async function cambiarCamara() {
+        usandoCamaraFrontal = !usandoCamaraFrontal;
+
+        // Apagamos la cámara actual
+        if (streamCamara) {
+            streamCamara.getTracks().forEach(track => track.stop());
+            streamCamara = null;
+        }
+
+        // Encendemos la otra cámara
+        await encenderCamara();
+    }
+
+
+    // ================================================================
+    // 📷 FUNCIÓN: tomarFoto()
+    // ================================================================
+    // 📐 Diagrama → "Recibir una imagen" (capturando del video)
+    //
+    // Captura un FRAME (cuadro) del video de la cámara y lo convierte
+    // en una imagen estática para clasificar.
+    //
+    function tomarFoto() {
+        const video = document.getElementById('videoPreview');
+        const canvas = document.getElementById('canvasCaptura');
+        const ctx = canvas.getContext('2d');
+
+        // Si la clasificación automática está activa, la detenemos
+        if (autoClasificando) {
+            toggleAutoClasificar();
+        }
+
+        // Capturamos el frame actual del video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        // Convertimos el canvas a una imagen y la mostramos
+        const dataUrl = canvas.toDataURL('image/png');
+        const capturedImg = document.getElementById('capturedImage');
+        capturedImg.src = dataUrl;
+        capturedImg.style.display = 'block';
+
+        // Ocultamos el video momentáneamente para mostrar la foto
+        video.style.display = 'none';
+        document.getElementById('liveBadge').style.display = 'none';
+
+        // ── AVANZAMOS AL PASO 3: Predecir ──
+        capturedImg.onload = function() {
+            predecir(capturedImg);
+        };
+    }
+
+
+    // ================================================================
+    // ⚡ FUNCIÓN: toggleAutoClasificar()
+    // ================================================================
+    //
+    // Activa o desactiva la CLASIFICACIÓN EN TIEMPO REAL.
+    // Cuando está activa, toma un frame del video cada 500ms (medio segundo)
+    // y lo clasifica automáticamente. Es como si el modelo estuviera
+    // "mirando" constantemente a través de la cámara.
+    //
+    // 💡 Concepto: setInterval()
+    //    Es una función que ejecuta código cada X milisegundos.
+    //    Aquí la usamos para clasificar repetidamente.
+    //    Es como un reloj que cada medio segundo dice "¡clasifica!"
+    //
+    function toggleAutoClasificar() {
+        const btn = document.getElementById('btnAutoClasificar');
+
+        if (autoClasificando) {
+            // ── APAGAR clasificación automática ──
+            clearInterval(intervaloAuto);
+            intervaloAuto = null;
+            autoClasificando = false;
+            btn.textContent = '⚡ Clasificar en vivo';
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-amber');
+            document.getElementById('btnTomarFoto').disabled = false;
+        } else {
+            // ── ENCENDER clasificación automática ──
+            autoClasificando = true;
+            btn.textContent = '⏸️ Detener clasificación';
+            btn.classList.remove('btn-amber');
+            btn.classList.add('btn-danger');
+            document.getElementById('btnTomarFoto').disabled = true;
+
+            // Aseguramos que se vea el video en vivo
+            document.getElementById('videoPreview').style.display = 'block';
+            document.getElementById('capturedImage').style.display = 'none';
+            document.getElementById('liveBadge').style.display = 'flex';
+            document.getElementById('accionesPostResultado').style.display = 'none';
+
+            // Clasificamos cada 500ms (2 veces por segundo)
+            clasificarFrameEnVivo();
+            intervaloAuto = setInterval(clasificarFrameEnVivo, 500);
+        }
+    }
+
+    // Función que clasifica UN frame del video en vivo
+    function clasificarFrameEnVivo() {
+        const video = document.getElementById('videoPreview');
+
+        // Solo clasificamos si el video está reproduciendo
+        if (video.readyState >= 2 && modelo) {
+            predecir(video);
+        }
+    }
+
+
+    // ================================================================
+    // ⏹️ FUNCIÓN: apagarCamara()
+    // ================================================================
+    //
+    // Apaga la cámara y libera los recursos.
+    //
+    // 💡 Concepto: Cuando enciendes la cámara, el navegador la
+    //    "reserva" para tu página. Si no la apagas, ninguna otra
+    //    aplicación podrá usarla. Por eso es importante llamar a
+    //    track.stop() para liberar la cámara.
+    //
+    function apagarCamara() {
+        // Detenemos la clasificación automática si estaba activa
+        if (autoClasificando) {
+            toggleAutoClasificar();
+        }
+
+        // Detenemos todos los tracks del stream (video, audio)
+        // Cada track es un "canal" de datos. Para la cámara es el canal de video.
+        if (streamCamara) {
+            streamCamara.getTracks().forEach(track => track.stop());
+            streamCamara = null;
+        }
+
+        // Limpiamos la interfaz
+        const video = document.getElementById('videoPreview');
+        video.srcObject = null;
+        video.style.display = 'none';
+
+        document.getElementById('capturedImage').style.display = 'none';
+        document.getElementById('liveBadge').style.display = 'none';
+
+        // Mostramos el overlay de "cámara apagada"
+        const overlay = document.getElementById('cameraOverlay');
+        overlay.style.display = 'flex';
+        overlay.innerHTML = `
+            <span class="icon">📸</span>
+            <span class="hint">
+                La cámara está apagada.<br>
+                Haz clic en <strong>"Encender cámara"</strong> para comenzar.
+            </span>
+        `;
+
+        // Actualizamos botones
+        document.getElementById('btnTomarFoto').disabled = true;
+        document.getElementById('btnAutoClasificar').disabled = true;
+        document.getElementById('btnApagarCamara').disabled = true;
+        document.getElementById('btnEncenderCamara').disabled = false;
+    }
+
+
+    // ================================================================
+    // 📁 FUNCIÓN: recibirImagen() — Para archivos subidos
+    // ================================================================
+    // 📐 Diagrama → "Recibir una imagen" (desde archivo)
+    //
+    function recibirImagen(event) {
+        const archivo = event.target.files[0];
+        if (!archivo) return;
+
+        const urlImagen = URL.createObjectURL(archivo);
+
+        const zona = document.getElementById('imageZone');
+        zona.innerHTML = `<img src="${urlImagen}" alt="Imagen a clasificar" id="imagenSubida">`;
+        zona.classList.add('has-image');
+
+        const img = document.getElementById('imagenSubida');
+        img.onload = function() {
+            predecir(img);
+        };
+    }
+
+
+    // ================================================================
+    // 🔮 PASO 3 DEL DIAGRAMA: "El modelo predice (% de cada clase)"
+    //                          → Esto es una FUNCIÓN
+    // ================================================================
+    // 📐 Diagrama → "El modelo predice (% de cada clase)"
+    //
+    // Recibe una imagen (o un elemento video) y le pide al modelo
+    // que la analice. Funciona tanto con fotos como con video en vivo.
+    //
+    async function predecir(imagenElemento) {
+
+        // Desbloqueamos la sección de resultados
+        document.getElementById('seccion-resultado').style.opacity = '1';
+        document.getElementById('seccion-resultado').style.pointerEvents = 'auto';
+
+        // ── PASO 3: El modelo predice ──
+        const predicciones = await modelo.predict(imagenElemento);
+
+
+        // ── PASO 4: "Tomar la clase más probable" ──
+        let mejorClase = predicciones[0].className;
+        let mejorConfianza = predicciones[0].probability;
+
+        for (let i = 1; i < predicciones.length; i++) {
+            if (predicciones[i].probability > mejorConfianza) {
+                mejorClase = predicciones[i].className;
+                mejorConfianza = predicciones[i].probability;
+            }
+        }
+
+        const porcentaje = (mejorConfianza * 100).toFixed(1);
+
+
+        // ── PASO 5: "¿Confianza > 80%?" (IF) ──
+        const resultBox = document.getElementById('resultBox');
+        const resultClass = document.getElementById('resultClass');
+        const resultConfidence = document.getElementById('resultConfidence');
+
+        resultBox.classList.remove('confident', 'not-confident');
+
+        if (mejorConfianza > 0.80) {
+            // ── RAMA "SÍ" → Mostrar resultado con confianza alta ──
+            resultClass.textContent = `✅ Es "${mejorClase}"`;
+            resultConfidence.textContent = `Confianza: ${porcentaje}% — El modelo está seguro`;
+            resultBox.classList.add('confident');
+        } else {
+            // ── RAMA "NO" → Mostrar "No estoy seguro" ──
+            resultClass.textContent = `⚠️ No estoy seguro...`;
+            resultConfidence.textContent =
+                `Lo más parecido es "${mejorClase}" (${porcentaje}%), pero la confianza es baja`;
+            resultBox.classList.add('not-confident');
+        }
+
+
+        // ── Mostrar barras de todas las predicciones ──
+        const listaPreds = document.getElementById('predictionsList');
+        listaPreds.innerHTML = '';
+
+        const predsOrdenadas = [...predicciones].sort(
+            (a, b) => b.probability - a.probability
+        );
+
+        predsOrdenadas.forEach((pred, i) => {
+            const pct = (pred.probability * 100).toFixed(1);
+            const esTop = (i === 0);
+
+            const item = document.createElement('div');
+            item.className = 'prediction-item';
+            item.innerHTML = `
+                <span class="prediction-label">${pred.className}</span>
+                <div class="prediction-bar-bg">
+                    <div class="prediction-bar-fill ${esTop ? 'top' : 'other'}"
+                         style="width: ${pct}%"></div>
+                </div>
+                <span class="prediction-percent">${pct}%</span>
+            `;
+            listaPreds.appendChild(item);
+        });
+
+        // Solo mostramos "¿Otra imagen?" si NO estamos en modo automático
+        if (!autoClasificando) {
+            document.getElementById('accionesPostResultado').style.display = 'flex';
+        }
+    }
+
+
+    // ================================================================
+    // 🔁 "¿Otra imagen?" → SÍ → Repetir
+    // ================================================================
+    function otraImagen() {
+        // Limpiamos imagen del tab archivo
+        const zona = document.getElementById('imageZone');
+        zona.innerHTML = `
+            <span class="icon">📁</span>
+            <span class="hint">Haz clic aquí o arrastra una imagen</span>
+            <span class="hint" style="font-size: 0.75rem;">Formatos: JPG, PNG, WEBP</span>
+        `;
+        zona.classList.remove('has-image');
+
+        // Limpiamos resultados
+        const resultBox = document.getElementById('resultBox');
+        resultBox.classList.remove('confident', 'not-confident');
+        document.getElementById('predictionsList').innerHTML = '';
+        document.getElementById('accionesPostResultado').style.display = 'none';
+
+        document.getElementById('fileInput').value = '';
+
+        // Si la cámara está activa, mostramos el video de nuevo
+        if (streamCamara) {
+            document.getElementById('videoPreview').style.display = 'block';
+            document.getElementById('capturedImage').style.display = 'none';
+            document.getElementById('liveBadge').style.display = 'flex';
+        }
+    }
+
+
+    // ================================================================
+    // 🛠️ FUNCIONES AUXILIARES
+    // ================================================================
+
+    function mostrarEstado(elementId, mensaje, tipo) {
+        const el = document.getElementById(elementId);
+        const spinner = tipo === 'loading' ? '<div class="spinner"></div>' : '';
+        el.innerHTML = `<div class="status ${tipo}">${spinner} ${mensaje}</div>`;
+    }
+
+    // Cambiar entre tabs (cámara / archivo)
+    function cambiarTab(tab) {
+        // Desactivamos todos los tabs
+        document.querySelectorAll('.input-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+        if (tab === 'camara') {
+            document.getElementById('tabCamara').classList.add('active');
+            document.getElementById('tabContentCamara').classList.add('active');
+        } else {
+            document.getElementById('tabArchivo').classList.add('active');
+            document.getElementById('tabContentArchivo').classList.add('active');
+            // Si la cámara estaba en modo auto, la detenemos
+            if (autoClasificando) {
+                toggleAutoClasificar();
+            }
+        }
+    }
+
+
+    // ── Soporte para arrastrar y soltar (Drag & Drop) ──
+    document.addEventListener('DOMContentLoaded', () => {
+        const zona = document.getElementById('imageZone');
+
+        zona.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zona.style.borderColor = 'var(--accent-cyan)';
+            zona.style.background = 'rgba(6, 182, 212, 0.06)';
+        });
+
+        zona.addEventListener('dragleave', () => {
+            zona.style.borderColor = '';
+            zona.style.background = '';
+        });
+
+        zona.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zona.style.borderColor = '';
+            zona.style.background = '';
+
+            const archivos = e.dataTransfer.files;
+            if (archivos.length > 0 && archivos[0].type.startsWith('image/')) {
+                const dt = new DataTransfer();
+                dt.items.add(archivos[0]);
+                const input = document.getElementById('fileInput');
+                input.files = dt.files;
+                recibirImagen({ target: input });
+            }
+        });
+
+
+        // ══════════════════════════════════════════════════════
+        // 🔒 VERIFICACIÓN INICIAL DE SOPORTE DE CÁMARA
+        // ══════════════════════════════════════════════════════
+        //
+        // Al cargar la página, verificamos si el navegador SOPORTA
+        // la API de cámara. Si no la soporta (por ejemplo, en un
+        // navegador muy viejo o sin HTTPS), avisamos al usuario.
+        //
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            const overlay = document.getElementById('cameraOverlay');
+            overlay.innerHTML = `
+                <span class="icon">⚠️</span>
+                <span class="hint">
+                    Tu navegador no soporta acceso a la cámara.<br>
+                    Asegúrate de usar <strong>Chrome, Firefox o Safari</strong><br>
+                    y que el sitio use <strong>HTTPS</strong> (o localhost).
+                </span>
+            `;
+            document.getElementById('btnEncenderCamara').disabled = true;
+            document.getElementById('btnAutoClasificar').disabled = true;
+        }
+    });
+
+    </script>
+
+</body>
+</html>

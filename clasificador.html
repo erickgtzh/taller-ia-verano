@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 Clasificador de Imágenes - Taller IA Verano</title>
+
+    <!-- ============================================================
+         📚 LIBRERÍAS NECESARIAS
+         Estas son las herramientas que necesitamos para que funcione
+         nuestro clasificador. Piensa en ellas como los "ingredientes"
+         de una receta:
+         - TensorFlow.js: El "cerebro" que ejecuta el modelo de IA
+         - Teachable Machine: El "traductor" que conecta nuestro
+           modelo entrenado con la página web
+    ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
+    <!-- ============================================================
+         🎨 ESTILOS (CSS)
+         Esta sección controla cómo se VE nuestra página.
+         No afecta la lógica del programa, solo la apariencia.
+    ============================================================ -->
+    <style>
+        /* ---------- Google Font ---------- */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        /* ---------- Variables de diseño ---------- */
+        :root {
+            --bg-primary: #0f1117;
+            --bg-card: #1a1d27;
+            --bg-card-hover: #222633;
+            --accent-blue: #4f8ff7;
+            --accent-purple: #a855f7;
+            --accent-green: #22c55e;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #2a2f3e;
+            --radius: 16px;
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ---------- Header ---------- */
+        .header {
+            width: 100%;
+            padding: 24px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: linear-gradient(135deg, rgba(79, 143, 247, 0.08), rgba(168, 85, 247, 0.08));
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header .emoji {
+            font-size: 2rem;
+            -webkit-text-fill-color: initial;
+        }
+
+        /* ---------- Layout principal ---------- */
+        .main {
+            width: 100%;
+            max-width: 900px;
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* ---------- Cards / Secciones ---------- */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            box-shadow: var(--shadow);
+            transition: border-color 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(79, 143, 247, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .step-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .step-badge.blue { background: linear-gradient(135deg, var(--accent-blue), #3b7de8); }
+        .step-badge.purple { background: linear-gradient(135deg, var(--accent-purple), #9333ea); }
+        .step-badge.green { background: linear-gradient(135deg, var(--accent-green), #16a34a); }
+        .step-badge.amber { background: linear-gradient(135deg, var(--accent-amber), #d97706); }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .card-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-left: auto;
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(100, 116, 139, 0.15);
+        }
+
+        /* ---------- Input URL ---------- */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .input-url {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: 'Inter', monospace;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .input-url:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .input-url::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* ---------- Botones ---------- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79, 143, 247, 0.35);
+        }
+
+        .btn-secondary {
+            background: rgba(79, 143, 247, 0.12);
+            color: var(--accent-blue);
+            border: 1px solid rgba(79, 143, 247, 0.2);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(79, 143, 247, 0.2);
+        }
+
+        .btn-green {
+            background: linear-gradient(135deg, var(--accent-green), #16a34a);
+            color: white;
+        }
+
+        .btn-green:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(34, 197, 94, 0.35);
+        }
+
+        /* ---------- Zona de imagen ---------- */
+        .image-zone {
+            border: 2px dashed var(--border);
+            border-radius: 14px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .image-zone:hover {
+            border-color: var(--accent-blue);
+            background: rgba(79, 143, 247, 0.04);
+        }
+
+        .image-zone.has-image {
+            padding: 16px;
+            border-style: solid;
+            border-color: var(--accent-green);
+        }
+
+        .image-zone img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .image-zone .icon {
+            font-size: 3rem;
+            opacity: 0.5;
+        }
+
+        .image-zone .hint {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .image-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        input[type="file"] { display: none; }
+
+        /* ---------- Resultados ---------- */
+        .result-container {
+            margin-top: 16px;
+        }
+
+        .result-box {
+            padding: 20px;
+            border-radius: 14px;
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-box.confident {
+            display: block;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(34, 197, 94, 0.05));
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .result-box.not-confident {
+            display: block;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05));
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .result-class {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .result-confidence {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* ---------- Barras de predicción ---------- */
+        .predictions-list {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .prediction-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .prediction-label {
+            width: 120px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .prediction-bar-bg {
+            flex: 1;
+            height: 28px;
+            background: var(--bg-primary);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .prediction-bar-fill {
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.6s ease;
+            min-width: 2px;
+        }
+
+        .prediction-bar-fill.top { background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); }
+        .prediction-bar-fill.other { background: rgba(100, 116, 139, 0.3); }
+
+        .prediction-percent {
+            width: 48px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-align: left;
+            flex-shrink: 0;
+        }
+
+        /* ---------- Estado / Log ---------- */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-top: 12px;
+        }
+
+        .status.loading {
+            background: rgba(79, 143, 247, 0.1);
+            color: var(--accent-blue);
+        }
+
+        .status.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--accent-green);
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---------- Diagrama de referencia ---------- */
+        .flow-ref {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: rgba(168, 85, 247, 0.1);
+            color: var(--accent-purple);
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            width: fit-content;
+        }
+
+        /* ---------- Footer ---------- */
+        .footer {
+            padding: 24px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 600px) {
+            .main { padding: 16px 12px; }
+            .card { padding: 20px; }
+            .input-group { flex-direction: column; }
+            .image-actions { flex-direction: column; align-items: stretch; }
+            .prediction-label { width: 80px; font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         🏷️ ENCABEZADO
+    ============================================================ -->
+    <header class="header">
+        <span class="emoji">🤖</span>
+        <h1>Clasificador de Imágenes con IA</h1>
+    </header>
+
+    <main class="main">
+
+        <!-- ============================================================
+             📦 PASO 1 DEL DIAGRAMA: "Cargar el modelo entrenado" (variable)
+             ─────────────────────────────────────────────────────────────
+             Aquí el alumno pega la URL del modelo que exportó desde
+             Teachable Machine. Esto equivale a GUARDAR EN UNA VARIABLE
+             la referencia al modelo.
+        ============================================================ -->
+        <section class="card" id="seccion-modelo">
+            <div class="card-header">
+                <span class="step-badge blue">1</span>
+                <span class="card-title">Cargar el modelo entrenado</span>
+                <span class="card-subtitle">📦 variable</span>
+            </div>
+
+            <div class="flow-ref">📐 Diagrama → "Cargar el modelo entrenado"</div>
+
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 16px;">
+                Pega la URL de tu modelo de
+                <a href="https://teachablemachine.withgoogle.com/" target="_blank" style="color: var(--accent-blue); text-decoration: none;">Teachable Machine</a>.
+                Expórtalo como <strong>TensorFlow.js</strong> y copia el enlace.
+            </p>
+
+            <div class="input-group">
+                <input type="text" class="input-url" id="inputModelURL"
+                       placeholder="https://teachablemachine.withgoogle.com/models/TU-MODELO/"
+                       value="">
+                <button class="btn btn-primary" id="btnCargarModelo" onclick="cargarModelo()">
+                    🚀 Cargar modelo
+                </button>
+            </div>
+
+            <div id="estadoModelo"></div>
+        </section>
+
+        <!-- ============================================================
+             📷 PASO 2 DEL DIAGRAMA: "Recibir una imagen"
+             ─────────────────────────────────────────────────────────────
+             El alumno sube una imagen o la toma con la cámara.
+             Este paso es el PUNTO DE ENTRADA del ciclo (loop).
+             En el diagrama, la flecha de "repetir" regresa aquí.
+        ============================================================ -->
+        <section class="card" id="seccion-imagen" style="opacity: 0.4; pointer-events: none;">
+            <div class="card-header">
+                <span class="step-badge purple">2</span>
+                <span class="card-title">Recibir una imagen</span>
+                <span class="card-subtitle">📷 entrada del loop</span>
+            </div>
+
+            <div class="flow-ref">📐 Diagrama → "Recibir una imagen" (punto de retorno del ciclo)</div>
+
+            <div class="image-zone" id="imageZone" onclick="document.getElementById('fileInput').click()">
+                <span class="icon">📷</span>
+                <span class="hint">Haz clic aquí o arrastra una imagen</span>
+                <span class="hint" style="font-size: 0.75rem;">Formatos: JPG, PNG, WEBP</span>
+            </div>
+
+            <input type="file" id="fileInput" accept="image/*" onchange="recibirImagen(event)">
+
+            <div class="image-actions">
+                <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">
+                    📁 Elegir archivo
+                </button>
+                <button class="btn btn-secondary" id="btnCamara" onclick="usarCamara()">
+                    📸 Usar cámara
+                </button>
+            </div>
+
+            <!-- Canvas oculto para que el modelo pueda "ver" la imagen -->
+            <canvas id="canvasPrediccion" style="display:none;" width="224" height="224"></canvas>
+            <!-- Video para cámara -->
+            <video id="videoPreview" style="display:none; width:100%; max-height:300px; border-radius:10px; margin-top:12px;" autoplay playsinline></video>
+        </section>
+
+        <!-- ============================================================
+             🔮 PASOS 3, 4, 5 Y 6 DEL DIAGRAMA (se ejecutan automáticamente):
+             ─────────────────────────────────────────────────────────────
+             3. "El modelo predice (% de cada clase)" → función
+             4. "Tomar la clase más probable"
+             5. "¿Confianza > 80%?" → if
+                  - SÍ  → Mostrar "Es manzana (92%)"
+                  - NO  → Mostrar "No estoy seguro"
+             6. "¿Otra imagen?" → decidir si repetir
+        ============================================================ -->
+        <section class="card" id="seccion-resultado" style="opacity: 0.4; pointer-events: none;">
+            <div class="card-header">
+                <span class="step-badge green">3</span>
+                <span class="card-title">Resultado de la predicción</span>
+                <span class="card-subtitle">🔮 función + if</span>
+            </div>
+
+            <div class="flow-ref">📐 Diagrama → "El modelo predice" + "¿Confianza > 80%?"</div>
+
+            <!-- Resultado principal (se muestra después de predecir) -->
+            <div class="result-container">
+                <div class="result-box" id="resultBox">
+                    <div class="result-class" id="resultClass"></div>
+                    <div class="result-confidence" id="resultConfidence"></div>
+                </div>
+            </div>
+
+            <!-- Barras de todas las predicciones -->
+            <div class="predictions-list" id="predictionsList"></div>
+
+            <!-- ============================================================
+                 🔁 PASO 7 DEL DIAGRAMA: "¿Otra imagen?"
+                 ─────────────────────────────────────────────────────────────
+                 Si el usuario hace clic, regresamos al Paso 2 (el loop).
+                 Si no, pues... se acaba 🙂
+            ============================================================ -->
+            <div class="image-actions" id="accionesPostResultado" style="display:none; margin-top:20px;">
+                <div class="flow-ref">📐 Diagrama → "¿Otra imagen?" → Sí → Volver al paso 2</div>
+                <button class="btn btn-green" onclick="otraImagen()">
+                    🔄 Clasificar otra imagen
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        Taller de Inteligencia Artificial · Universidad Panamericana · Verano 2026
+    </footer>
+
+    <!-- ============================================================
+         🧠 LÓGICA DEL PROGRAMA (JavaScript)
+         ─────────────────────────────────────────────────────────────
+         Aquí es donde vive la LÓGICA. Cada función está comentada
+         para que puedas seguir el diagrama de flujo paso a paso.
+    ============================================================ -->
+    <script>
+
+    // ================================================================
+    // 📦 PASO 1 DEL DIAGRAMA: "Cargar el modelo entrenado" (VARIABLE)
+    // ================================================================
+    //
+    // Esta variable almacena nuestro modelo de IA.
+    // Al principio está vacía (null). Cuando el alumno haga clic en
+    // "Cargar modelo", se llenará con el modelo de Teachable Machine.
+    //
+    // 💡 Concepto: Una VARIABLE es como una caja donde guardamos algo.
+    //    Aquí guardamos el "cerebro" entrenado del modelo.
+    //
+    let modelo = null;  // ← Esta es nuestra variable del modelo
+
+
+    // ================================================================
+    // 🔧 FUNCIÓN: cargarModelo()
+    // ================================================================
+    // 📐 Diagrama → "Cargar el modelo entrenado"
+    //
+    // Esta función se ejecuta cuando el alumno hace clic en "Cargar modelo".
+    // Toma la URL que escribió, construye las rutas a los archivos del
+    // modelo (model.json y metadata.json) y lo carga en memoria.
+    //
+    // 💡 Concepto: Una FUNCIÓN es un bloque de código reutilizable.
+    //    Es como una receta: la defines una vez y la ejecutas las veces
+    //    que quieras.
+    //
+    async function cargarModelo() {
+
+        // Leemos lo que escribió el alumno en el campo de texto
+        const url = document.getElementById('inputModelURL').value.trim();
+
+        // Validación: ¿escribió algo?
+        if (!url) {
+            mostrarEstado('estadoModelo', '⚠️ Por favor, pega la URL de tu modelo', 'error');
+            return;
+        }
+
+        // Mostramos un mensaje de "cargando..."
+        mostrarEstado('estadoModelo', '⏳ Cargando modelo...', 'loading');
+        document.getElementById('btnCargarModelo').disabled = true;
+
+        try {
+            // ── AQUÍ ESTÁ LA MAGIA ──
+            // Construimos las rutas a los archivos del modelo.
+            // Teachable Machine exporta DOS archivos:
+            //   - model.json  → La estructura y pesos del modelo (el "cerebro")
+            //   - metadata.json → Los nombres de las clases (ej: "manzana", "plátano")
+            //
+            const modelURL = url + 'model.json';
+            const metadataURL = url + 'metadata.json';
+
+            // Cargamos el modelo. Esto descarga los archivos y los pone en memoria.
+            // 📦 Aquí la VARIABLE 'modelo' deja de estar vacía (null)
+            //    y ahora contiene nuestro modelo entrenado.
+            //
+            modelo = await tmImage.load(modelURL, metadataURL);
+
+            // ¡Éxito! El modelo está listo
+            const numClases = modelo.getTotalClasses();
+            mostrarEstado('estadoModelo',
+                `✅ ¡Modelo cargado! Tiene ${numClases} clases. ¡Listo para clasificar!`,
+                'success'
+            );
+
+            // Desbloqueamos el paso 2 (recibir imagen)
+            document.getElementById('seccion-imagen').style.opacity = '1';
+            document.getElementById('seccion-imagen').style.pointerEvents = 'auto';
+
+        } catch (error) {
+            // Si algo salió mal (URL incorrecta, internet, etc.)
+            mostrarEstado('estadoModelo',
+                '❌ Error al cargar el modelo. Verifica la URL y que termine en "/"',
+                'error'
+            );
+            console.error('Error cargando modelo:', error);
+        }
+
+        document.getElementById('btnCargarModelo').disabled = false;
+    }
+
+
+    // ================================================================
+    // 📷 PASO 2 DEL DIAGRAMA: "Recibir una imagen"
+    // ================================================================
+    // 📐 Diagrama → "Recibir una imagen"
+    //
+    // Esta función se activa cuando el alumno sube una imagen.
+    // Es el PUNTO DE ENTRADA del ciclo (loop) del diagrama.
+    //
+    function recibirImagen(event) {
+
+        const archivo = event.target.files[0];
+        if (!archivo) return;
+
+        // Creamos una URL temporal para mostrar la imagen en pantalla
+        const urlImagen = URL.createObjectURL(archivo);
+
+        // Mostramos la imagen en la zona de preview
+        const zona = document.getElementById('imageZone');
+        zona.innerHTML = `<img src="${urlImagen}" alt="Imagen a clasificar" id="imagenSubida">`;
+        zona.classList.add('has-image');
+
+        // Detenemos la cámara si estaba activa
+        detenerCamara();
+
+        // Esperamos a que la imagen cargue y luego llamamos a predecir
+        const img = document.getElementById('imagenSubida');
+        img.onload = function() {
+            // ── AVANZAMOS AL PASO 3: "El modelo predice" ──
+            predecir(img);
+        };
+    }
+
+
+    // ================================================================
+    // 📸 FUNCIÓN ALTERNATIVA: Usar la cámara
+    // ================================================================
+    // Esta no está en el diagrama pero es una forma alternativa de
+    // "recibir una imagen" usando la cámara del dispositivo.
+    //
+    let streamCamara = null;
+
+    async function usarCamara() {
+        try {
+            const video = document.getElementById('videoPreview');
+
+            // Si la cámara ya está activa, tomamos la foto
+            if (streamCamara) {
+                tomarFotoDeCamara();
+                return;
+            }
+
+            // Pedimos permiso para usar la cámara
+            streamCamara = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            video.srcObject = streamCamara;
+            video.style.display = 'block';
+
+            // Cambiamos el botón
+            document.getElementById('btnCamara').textContent = '📸 Tomar foto';
+
+        } catch (err) {
+            alert('No se pudo acceder a la cámara: ' + err.message);
+        }
+    }
+
+    function tomarFotoDeCamara() {
+        const video = document.getElementById('videoPreview');
+        const canvas = document.getElementById('canvasPrediccion');
+        const ctx = canvas.getContext('2d');
+
+        // Dibujamos el frame actual del video en el canvas
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        // Mostramos la captura en la zona de imagen
+        const dataUrl = canvas.toDataURL('image/png');
+        const zona = document.getElementById('imageZone');
+        zona.innerHTML = `<img src="${dataUrl}" alt="Foto de cámara" id="imagenSubida">`;
+        zona.classList.add('has-image');
+
+        // Detenemos la cámara
+        detenerCamara();
+
+        // Predecimos usando el canvas
+        const img = document.getElementById('imagenSubida');
+        img.onload = function() {
+            predecir(img);
+        };
+    }
+
+    function detenerCamara() {
+        if (streamCamara) {
+            streamCamara.getTracks().forEach(track => track.stop());
+            streamCamara = null;
+            document.getElementById('videoPreview').style.display = 'none';
+            document.getElementById('btnCamara').textContent = '📸 Usar cámara';
+        }
+    }
+
+
+    // ================================================================
+    // 🔮 PASO 3 DEL DIAGRAMA: "El modelo predice (% de cada clase)"
+    //                          → Esto es una FUNCIÓN
+    // ================================================================
+    // 📐 Diagrama → "El modelo predice (% de cada clase)"
+    //
+    // Esta es la función más importante del programa.
+    // Recibe una imagen y le pide al modelo que la analice.
+    // El modelo devuelve un PORCENTAJE para cada clase.
+    //
+    // 💡 Concepto: Cuando llamamos a modelo.predict(), el modelo
+    //    "mira" la imagen y nos dice qué tan probable es que sea
+    //    cada una de las clases que aprendió. Por ejemplo:
+    //      - manzana: 92%
+    //      - plátano: 5%
+    //      - naranja: 3%
+    //
+    async function predecir(imagenElemento) {
+
+        // Desbloqueamos la sección de resultados
+        document.getElementById('seccion-resultado').style.opacity = '1';
+        document.getElementById('seccion-resultado').style.pointerEvents = 'auto';
+
+        // ── PASO 3: El modelo predice ──
+        // model.predict() devuelve un ARRAY (lista) de objetos.
+        // Cada objeto tiene:
+        //   - className: el nombre de la clase (ej: "manzana")
+        //   - probability: un número entre 0 y 1 (ej: 0.92 = 92%)
+        //
+        const predicciones = await modelo.predict(imagenElemento);
+
+
+        // ── PASO 4 DEL DIAGRAMA: "Tomar la clase más probable" ──
+        // 📐 Diagrama → "Tomar la clase más probable"
+        //
+        // Recorremos todas las predicciones para encontrar la que tiene
+        // el porcentaje MÁS ALTO. Esa es nuestra "mejor apuesta".
+        //
+        let mejorClase = predicciones[0].className;
+        let mejorConfianza = predicciones[0].probability;
+
+        for (let i = 1; i < predicciones.length; i++) {
+            if (predicciones[i].probability > mejorConfianza) {
+                mejorClase = predicciones[i].className;
+                mejorConfianza = predicciones[i].probability;
+            }
+        }
+
+        // Convertimos la confianza de decimal (0.92) a porcentaje (92%)
+        const porcentaje = (mejorConfianza * 100).toFixed(1);
+
+
+        // ── PASO 5 DEL DIAGRAMA: "¿Confianza > 80%?" (IF) ──
+        // 📐 Diagrama → Rombo de decisión "¿confianza > 80%?"
+        //
+        // 💡 Concepto: Un IF es una DECISIÓN. El programa pregunta
+        //    "¿es la confianza mayor al 80%?" y según la respuesta
+        //    hace una cosa u otra.
+        //
+        // Esto es exactamente el ROMBO del diagrama de flujo.
+        //
+        const resultBox = document.getElementById('resultBox');
+        const resultClass = document.getElementById('resultClass');
+        const resultConfidence = document.getElementById('resultConfidence');
+
+        // Limpiamos clases previas
+        resultBox.classList.remove('confident', 'not-confident');
+
+        if (mejorConfianza > 0.80) {
+            // ── RAMA "SÍ" del diagrama ──
+            // 📐 Diagrama → Mostrar "Es manzana (92%)"
+            //
+            // La confianza es ALTA. El modelo está bastante seguro.
+            // Mostramos el resultado con estilo verde (éxito).
+            //
+            resultClass.textContent = `✅ Es "${mejorClase}"`;
+            resultConfidence.textContent = `Confianza: ${porcentaje}% — El modelo está seguro`;
+            resultBox.classList.add('confident');
+
+        } else {
+            // ── RAMA "NO" del diagrama ──
+            // 📐 Diagrama → Mostrar "No estoy seguro"
+            //
+            // La confianza es BAJA. El modelo no está seguro.
+            // Mostramos una advertencia con estilo amarillo.
+            //
+            resultClass.textContent = `⚠️ No estoy seguro...`;
+            resultConfidence.textContent =
+                `Lo más parecido es "${mejorClase}" (${porcentaje}%), pero la confianza es baja`;
+            resultBox.classList.add('not-confident');
+        }
+
+
+        // ── Mostrar las barras de TODAS las predicciones ──
+        // Esto no está en el diagrama, pero ayuda a los alumnos
+        // a entender que el modelo da un % para CADA clase.
+        //
+        const listaPreds = document.getElementById('predictionsList');
+        listaPreds.innerHTML = '';
+
+        // Ordenamos de mayor a menor para que se vea más claro
+        const predsOrdenadas = [...predicciones].sort(
+            (a, b) => b.probability - a.probability
+        );
+
+        predsOrdenadas.forEach((pred, i) => {
+            const pct = (pred.probability * 100).toFixed(1);
+            const esTop = (i === 0);
+
+            const item = document.createElement('div');
+            item.className = 'prediction-item';
+            item.innerHTML = `
+                <span class="prediction-label">${pred.className}</span>
+                <div class="prediction-bar-bg">
+                    <div class="prediction-bar-fill ${esTop ? 'top' : 'other'}"
+                         style="width: ${pct}%"></div>
+                </div>
+                <span class="prediction-percent">${pct}%</span>
+            `;
+            listaPreds.appendChild(item);
+        });
+
+
+        // ── PASO 6 DEL DIAGRAMA: "¿Otra imagen?" ──
+        // 📐 Diagrama → Rombo "¿Otra imagen?"
+        //
+        // Mostramos el botón para que el alumno decida si quiere
+        // clasificar otra imagen (→ SÍ, volver al paso 2)
+        // o si ya terminó (→ NO, fin).
+        //
+        document.getElementById('accionesPostResultado').style.display = 'flex';
+    }
+
+
+    // ================================================================
+    // 🔁 PASO 7 DEL DIAGRAMA: "¿Otra imagen?" → SÍ → Repetir
+    // ================================================================
+    // 📐 Diagrama → La flecha "repetir / sí" que vuelve a "Recibir imagen"
+    //
+    // Si el alumno hace clic en "Clasificar otra imagen", limpiamos
+    // todo y volvemos al Paso 2 (recibir nueva imagen).
+    //
+    // 💡 Concepto: Esto es un CICLO (loop). El programa no termina,
+    //    sino que vuelve a un paso anterior para repetir el proceso.
+    //
+    function otraImagen() {
+
+        // Limpiamos la zona de imagen (volvemos al estado inicial)
+        const zona = document.getElementById('imageZone');
+        zona.innerHTML = `
+            <span class="icon">📷</span>
+            <span class="hint">Haz clic aquí o arrastra una imagen</span>
+            <span class="hint" style="font-size: 0.75rem;">Formatos: JPG, PNG, WEBP</span>
+        `;
+        zona.classList.remove('has-image');
+
+        // Limpiamos los resultados
+        const resultBox = document.getElementById('resultBox');
+        resultBox.classList.remove('confident', 'not-confident');
+        document.getElementById('predictionsList').innerHTML = '';
+        document.getElementById('accionesPostResultado').style.display = 'none';
+
+        // Limpiamos el input de archivo para poder subir la misma imagen
+        document.getElementById('fileInput').value = '';
+
+        // ¡Listo! El programa está de vuelta en el Paso 2
+        // esperando que el alumno suba otra imagen.
+        // El CICLO se completa aquí. ↩️
+    }
+
+
+    // ================================================================
+    // 🛠️ FUNCIONES AUXILIARES (helpers)
+    // ================================================================
+    // Estas funciones no están en el diagrama de flujo, pero son
+    // necesarias para que la interfaz funcione bien.
+    //
+
+    /**
+     * Muestra un mensaje de estado (cargando, éxito, error)
+     * @param {string} elementId - ID del elemento donde mostrar
+     * @param {string} mensaje - Texto a mostrar
+     * @param {string} tipo - 'loading', 'success', o 'error'
+     */
+    function mostrarEstado(elementId, mensaje, tipo) {
+        const el = document.getElementById(elementId);
+        const spinner = tipo === 'loading' ? '<div class="spinner"></div>' : '';
+        el.innerHTML = `<div class="status ${tipo}">${spinner} ${mensaje}</div>`;
+    }
+
+
+    // ── Soporte para arrastrar y soltar (Drag & Drop) ──
+    // Para que sea más fácil subir imágenes
+    //
+    document.addEventListener('DOMContentLoaded', () => {
+        const zona = document.getElementById('imageZone');
+
+        zona.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            zona.style.borderColor = 'var(--accent-blue)';
+            zona.style.background = 'rgba(79, 143, 247, 0.06)';
+        });
+
+        zona.addEventListener('dragleave', () => {
+            zona.style.borderColor = '';
+            zona.style.background = '';
+        });
+
+        zona.addEventListener('drop', (e) => {
+            e.preventDefault();
+            zona.style.borderColor = '';
+            zona.style.background = '';
+
+            const archivos = e.dataTransfer.files;
+            if (archivos.length > 0 && archivos[0].type.startsWith('image/')) {
+                // Simulamos que el usuario seleccionó el archivo
+                const dt = new DataTransfer();
+                dt.items.add(archivos[0]);
+                const input = document.getElementById('fileInput');
+                input.files = dt.files;
+                recibirImagen({ target: input });
+            }
+        });
+    });
+
+    </script>
+
+</body>
+</html>
